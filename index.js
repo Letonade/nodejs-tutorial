@@ -2,7 +2,9 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const app = express();
 const v1 = express.Router();
+require('dotenv').config();
 
+const { basicAuth } = require('./middleware/basic-auth');
 const MessageService = require('./services/message');
 const messageService = new MessageService();
 
@@ -21,9 +23,12 @@ v1.get('/message/:id', (request, response) => {
     messageService.getMessage(id)
     .then(message => {
         message ? response.send(message) : response.sendStatus(404);
+    })
+    .catch(error => {
+        response.sendStatus(400).end(error)
     });
 });
-v1.post('/message',  (request, response) => {
+v1.post('/message', basicAuth, (request, response) => {
     const message = request.body;
     messageService.insertMessage(message)
     .then(result => {
@@ -35,12 +40,14 @@ v1.post('/message',  (request, response) => {
     });
 });
 
-v1.put('/message/:id',  (request, response) => {
+v1.put('/message/:id', basicAuth, (request, response) => {
     const id = request.params.id;
     const message = request.body;
     messageService.updateMessage(message, id)
     .then((res) => {
-        response.sendStatus(res ? 200 : 404);
+        if (!res.isFind) return response.sendStatus(404);
+        if (!res.isModified) return response.sendStatus(304);
+        response.sendStatus(200);
     })
     .catch(error => {
         console.log('error occurs: ', error);
@@ -48,17 +55,18 @@ v1.put('/message/:id',  (request, response) => {
     });
 });
 
-v1.delete('/message/:id',  (request, response) => {
+v1.delete('/message/:id', basicAuth, (request, response) => {
     const id = request.params.id;
     messageService.deleteMessage(id)
-    .then(() => {
-        response.sendStatus(200);
+    .then((isDeleted) => {
+        response.sendStatus(isDeleted ? 200 : 404);
     })
     .catch(error => {
-        response.sendStatus(404).end(error);
+        response.sendStatus(400).end(error);
     });
-})
-
-app.listen(3000, () => {
-    console.log('Server listening on port 3000!');
 });
+
+app.listen(process.env.APP_PORT, () => {
+    console.log('Server listening on port:', process.env.APP_PORT);
+});
+
